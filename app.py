@@ -11,9 +11,13 @@ st.set_page_config(page_title="Gerador - Infinity Elétrica", layout="wide")
 def formatar_moeda(valor_float):
     return f"R$ {valor_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
 
-# Inicializa a lista de itens na memória do navegador
+# Inicializa as variáveis na memória do navegador
 if 'lista_itens' not in st.session_state:
     st.session_state.lista_itens = []
+    
+# Gera o número do orçamento automático baseado em AnoMesDia-HoraMinuto
+if 'numero_auto' not in st.session_state:
+    st.session_state.numero_auto = datetime.now().strftime("%Y%m%d-%H%M")
 
 st.title("Gerador de Orçamentos - Infinity Elétrica")
 
@@ -22,7 +26,8 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.header("Dados do Cliente e Projeto")
-    numero_orc = st.text_input("Nº do Orçamento")
+    # O campo já vem preenchido com o número automático
+    numero_orc = st.text_input("Nº do Orçamento", value=st.session_state.numero_auto)
     cliente = st.text_input("Nome da Empresa")
     cnpj = st.text_input("CNPJ da Empresa")
     endereco = st.text_input("Endereço da Empresa")
@@ -71,6 +76,8 @@ with col2:
         
     if st.button("Limpar Lista"):
         st.session_state.lista_itens = []
+        # Ao limpar a lista, também gera um novo número para o próximo orçamento
+        st.session_state.numero_auto = datetime.now().strftime("%Y%m%d-%H%M")
         st.rerun()
 
 st.divider()
@@ -163,7 +170,6 @@ def gerar_pdf_bytes():
             str_unit = item["valor_unit"]
             str_total = "0,00"
         
-        # Se a linha for passar da página, cria uma nova folha
         if pdf.get_y() > 250:
             pdf.add_page()
             
