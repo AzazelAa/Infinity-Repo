@@ -13,7 +13,7 @@ if 'lista_itens' not in st.session_state:
 
 st.title("Gerador de Orçamentos - Infinity Elétrica")
 
-# Divide a tela em duas colunas (Esquerda = Cliente / Direita = Itens)
+# Divide a tela em duas colunas
 col1, col2 = st.columns(2)
 
 with col1:
@@ -31,15 +31,22 @@ with col1:
 
 with col2:
     st.header("Adicionar Itens")
-    tipo = st.selectbox("Tipo de Item", ["Serviço", "Material", "Equipamento"])
+    
+    # Organizando Tipo e Quantidade lado a lado
+    col_tipo, col_qtd = st.columns([2, 1])
+    with col_tipo:
+        tipo = st.selectbox("Tipo de Item", ["Serviço", "Material", "Equipamento"])
+    with col_qtd:
+        qtd_item = st.number_input("Quantidade", min_value=1, value=1, step=1)
+        
     nome_item = st.text_input("Nome do Item")
     desc_item = st.text_area("Descrição / Detalhes")
-    valor_item = st.text_input("Valor (Ex: 1500,00)")
+    valor_item = st.text_input("Valor Unitário (Ex: 1500,00)")
     
     if st.button("Adicionar à Lista", type="primary"):
         if nome_item and desc_item and valor_item:
             st.session_state.lista_itens.append({
-                "tipo": tipo, "nome": nome_item, "desc": desc_item, "valor": valor_item
+                "tipo": tipo, "qtd": qtd_item, "nome": nome_item, "desc": desc_item, "valor": valor_item
             })
             st.success("Item adicionado!")
         else:
@@ -47,7 +54,7 @@ with col2:
             
     st.subheader("Itens no Orçamento:")
     for i, item in enumerate(st.session_state.lista_itens):
-        st.write(f"- **[{item['tipo']}]** {item['nome']} | {item['desc']} : R$ {item['valor']}")
+        st.write(f"- **[{item['tipo']}]** {item['qtd']}x {item['nome']} | {item['desc']} : R$ {item['valor']} (Unitário)")
         
     if st.button("Limpar Lista"):
         st.session_state.lista_itens = []
@@ -102,37 +109,82 @@ def gerar_pdf_bytes():
         pdf.set_font("Arial", "B", 12)
         pdf.cell(0, 6, txt=f"Projeto / Local: {projeto}", ln=True)
     
-    # Tabela de Itens
+    # Tabela de Itens (Cabeçalho Redesenhado com QTD)
     pdf.ln(12)
     pdf.set_font("Arial", "B", 10)
     pdf.set_text_color(r_azul, g_azul, b_azul)
-    pdf.cell(25, 10, txt="TIPO", border='B', align='C')
-    pdf.cell(45, 10, txt="NOME", border='B', align='C')
-    pdf.cell(80, 10, txt="DESCRIÇÃO", border='B', align='C')
-    pdf.cell(30, 10, txt="VALOR", border='B', align='C')
-    pdf.ln(10)
+    
+    y_linha = pdf.get_y()
+    pdf.set_xy(15, y_linha)
+    pdf.cell(20, 10, txt="TIPO", align='C')
+    pdf.set_xy(35, y_linha)
+    pdf.cell(10, 10, txt="QTD", align='C')
+    pdf.set_xy(45, y_linha)
+    pdf.cell(40, 10, txt="NOME", align='C')
+    pdf.set_xy(85, y_linha)
+    pdf.cell(75, 10, txt="DESCRIÇÃO", align='C')
+    pdf.set_xy(160, y_linha)
+    pdf.cell(35, 10, txt="VALOR TOTAL", align='C')
+    
+    # Desenha a linha inferior do cabeçalho
+    pdf.line(15, y_linha + 10, 195, y_linha + 10)
+    pdf.set_y(y_linha + 12)
     
     pdf.set_font("Arial", "", 9)
     pdf.set_text_color(0, 0, 0)
     
     total_orcamento = 0.0
     for item in st.session_state.lista_itens:
+        # Prevenção de erro caso o item antigo não tenha QTD na memória
+        qtd = int(item.get("qtd", 1))
+        valor_total_item = 0.0
+        
         try:
-            valor_calc = float(item["valor"].replace(".", "").replace(",", "."))
-            total_orcamento += valor_calc
+            valor_unit_calc = float(item["valor"].replace(".", "").replace(",", "."))
+            valor_total_item = valor_unit_calc * qtd
+            total_orcamento += valor_total_item
         except ValueError:
             pass 
         
-        nome_curto = (item["nome"][:25] + '...') if len(item["nome"]) > 28 else item["nome"]
-        desc_curta = (item["desc"][:45] + '...') if len(item["desc"]) > 48 else item["desc"]
+        # Formata o valor total do item específico para exibir na linha
+        valor_total_str = f"R$ {valor_total_item:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
         
-        pdf.cell(25, 10, txt=item["tipo"], border='B', align='C')
-        pdf.cell(45, 10, txt=nome_curto, border='B', align='C')
-        pdf.cell(80, 10, txt=desc_curta, border='B', align='C')
-        pdf.cell(30, 10, txt=f"R$ {item['valor']}", border='B', align='C')
-        pdf.ln(10)
+        # Se a linha for passar da página, cria uma nova folha
+        if pdf.get_y() > 250:
+            pdf.add_page()
+            
+        y_linha = pdf.get_y()
+        
+        # TIPO
+        pdf.set_xy(15, y_linha)
+        pdf.cell(20, 6, txt=item["tipo"], align='C')
+        
+        # QTD
+        pdf.set_xy(35, y_linha)
+        pdf.cell(10, 6, txt=str(qtd), align='C')
+        
+        # NOME (Quebra de linha)
+        pdf.set_xy(45, y_linha)
+        pdf.multi_cell(40, 6, txt=item["nome"], align='C')
+        y_nome = pdf.get_y()
+        
+        # DESCRIÇÃO (Quebra de linha)
+        pdf.set_xy(85, y_linha)
+        pdf.multi_cell(75, 6, txt=item["desc"], align='L')
+        y_desc = pdf.get_y()
+        
+        # VALOR TOTAL DO ITEM (Qtd * Valor Unitário)
+        pdf.set_xy(160, y_linha)
+        pdf.cell(35, 6, txt=valor_total_str, align='C')
+        
+        # Descobre qual foi o bloco de texto mais longo para desenhar a linha divisória abaixo dele
+        y_maximo = max(y_linha + 6, y_nome, y_desc)
+        
+        # Linha inferior do item
+        pdf.line(15, y_maximo + 2, 195, y_maximo + 2)
+        pdf.set_y(y_maximo + 4)
     
-    # Total
+    # Total Final
     pdf.ln(5)
     pdf.set_x(105) 
     pdf.set_fill_color(r_azul, g_azul, b_azul) 
@@ -163,7 +215,6 @@ def gerar_pdf_bytes():
     pdf.set_text_color(150, 150, 150)
     pdf.cell(0, 10, txt="Gerado por Infinity", align='C', ln=True)
     
-    # Salva em memória (não no disco) para o download na web
     return pdf.output(dest='S').encode('latin-1')
 
 # Botão de Download Web
