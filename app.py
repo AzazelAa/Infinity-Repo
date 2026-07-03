@@ -7,6 +7,10 @@ import re
 # Configuração da página Web
 st.set_page_config(page_title="Gerador - Infinity Elétrica", layout="wide")
 
+# Função para formatar os números para o padrão brasileiro (R$ 1.500,00)
+def formatar_moeda(valor_float):
+    return f"R$ {valor_float:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+
 # Inicializa a lista de itens na memória do navegador
 if 'lista_itens' not in st.session_state:
     st.session_state.lista_itens = []
@@ -32,7 +36,6 @@ with col1:
 with col2:
     st.header("Adicionar Itens")
     
-    # Organizando Tipo e Quantidade lado a lado
     col_tipo, col_qtd = st.columns([2, 1])
     with col_tipo:
         tipo = st.selectbox("Tipo de Item", ["Serviço", "Material", "Equipamento"])
@@ -46,15 +49,25 @@ with col2:
     if st.button("Adicionar à Lista", type="primary"):
         if nome_item and desc_item and valor_item:
             st.session_state.lista_itens.append({
-                "tipo": tipo, "qtd": qtd_item, "nome": nome_item, "desc": desc_item, "valor": valor_item
+                "tipo": tipo, "qtd": qtd_item, "nome": nome_item, "desc": desc_item, "valor_unit": valor_item
             })
             st.success("Item adicionado!")
         else:
-            st.warning("Preencha todos os campos do item (Nome, Descrição e Valor)!")
+            st.warning("Preencha todos os campos do item (Nome, Descrição e Valor Unitário)!")
             
     st.subheader("Itens no Orçamento:")
     for i, item in enumerate(st.session_state.lista_itens):
-        st.write(f"- **[{item['tipo']}]** {item['qtd']}x {item['nome']} | {item['desc']} : R$ {item['valor']} (Unitário)")
+        qtd = item['qtd']
+        try:
+            val_unit = float(item["valor_unit"].replace(".", "").replace(",", "."))
+            val_total = val_unit * qtd
+            str_unit = formatar_moeda(val_unit)
+            str_total = formatar_moeda(val_total)
+        except:
+            str_unit = f"R$ {item['valor_unit']}"
+            str_total = "Erro de cálculo"
+            
+        st.write(f"- **[{item['tipo']}]** {qtd}x {item['nome']} | Unit: {str_unit} -> **Total: {str_total}**")
         
     if st.button("Limpar Lista"):
         st.session_state.lista_itens = []
@@ -109,45 +122,46 @@ def gerar_pdf_bytes():
         pdf.set_font("Arial", "B", 12)
         pdf.cell(0, 6, txt=f"Projeto / Local: {projeto}", ln=True)
     
-    # Tabela de Itens (Cabeçalho Redesenhado com QTD)
+    # Tabela de Itens
     pdf.ln(12)
-    pdf.set_font("Arial", "B", 10)
+    pdf.set_font("Arial", "B", 9) # Fonte levemente menor para caber todas as colunas
     pdf.set_text_color(r_azul, g_azul, b_azul)
     
     y_linha = pdf.get_y()
     pdf.set_xy(15, y_linha)
-    pdf.cell(20, 10, txt="TIPO", align='C')
-    pdf.set_xy(35, y_linha)
+    pdf.cell(15, 10, txt="TIPO", align='C')
+    pdf.set_xy(30, y_linha)
     pdf.cell(10, 10, txt="QTD", align='C')
-    pdf.set_xy(45, y_linha)
-    pdf.cell(40, 10, txt="NOME", align='C')
-    pdf.set_xy(85, y_linha)
-    pdf.cell(75, 10, txt="DESCRIÇÃO", align='C')
-    pdf.set_xy(160, y_linha)
-    pdf.cell(35, 10, txt="VALOR TOTAL", align='C')
+    pdf.set_xy(40, y_linha)
+    pdf.cell(35, 10, txt="NOME", align='C')
+    pdf.set_xy(75, y_linha)
+    pdf.cell(65, 10, txt="DESCRIÇÃO", align='C')
+    pdf.set_xy(140, y_linha)
+    pdf.cell(25, 10, txt="V. UNIT", align='C')
+    pdf.set_xy(165, y_linha)
+    pdf.cell(30, 10, txt="V. TOTAL", align='C')
     
     # Desenha a linha inferior do cabeçalho
     pdf.line(15, y_linha + 10, 195, y_linha + 10)
     pdf.set_y(y_linha + 12)
     
-    pdf.set_font("Arial", "", 9)
+    pdf.set_font("Arial", "", 8) # Fonte do conteúdo
     pdf.set_text_color(0, 0, 0)
     
     total_orcamento = 0.0
     for item in st.session_state.lista_itens:
-        # Prevenção de erro caso o item antigo não tenha QTD na memória
         qtd = int(item.get("qtd", 1))
-        valor_total_item = 0.0
         
         try:
-            valor_unit_calc = float(item["valor"].replace(".", "").replace(",", "."))
+            valor_unit_calc = float(item["valor_unit"].replace(".", "").replace(",", "."))
             valor_total_item = valor_unit_calc * qtd
             total_orcamento += valor_total_item
+            
+            str_unit = formatar_moeda(valor_unit_calc)
+            str_total = formatar_moeda(valor_total_item)
         except ValueError:
-            pass 
-        
-        # Formata o valor total do item específico para exibir na linha
-        valor_total_str = f"R$ {valor_total_item:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+            str_unit = item["valor_unit"]
+            str_total = "0,00"
         
         # Se a linha for passar da página, cria uma nova folha
         if pdf.get_y() > 250:
@@ -155,29 +169,26 @@ def gerar_pdf_bytes():
             
         y_linha = pdf.get_y()
         
-        # TIPO
         pdf.set_xy(15, y_linha)
-        pdf.cell(20, 6, txt=item["tipo"], align='C')
+        pdf.cell(15, 6, txt=item["tipo"], align='C')
         
-        # QTD
-        pdf.set_xy(35, y_linha)
+        pdf.set_xy(30, y_linha)
         pdf.cell(10, 6, txt=str(qtd), align='C')
         
-        # NOME (Quebra de linha)
-        pdf.set_xy(45, y_linha)
-        pdf.multi_cell(40, 6, txt=item["nome"], align='C')
+        pdf.set_xy(40, y_linha)
+        pdf.multi_cell(35, 6, txt=item["nome"], align='C')
         y_nome = pdf.get_y()
         
-        # DESCRIÇÃO (Quebra de linha)
-        pdf.set_xy(85, y_linha)
-        pdf.multi_cell(75, 6, txt=item["desc"], align='L')
+        pdf.set_xy(75, y_linha)
+        pdf.multi_cell(65, 6, txt=item["desc"], align='L')
         y_desc = pdf.get_y()
         
-        # VALOR TOTAL DO ITEM (Qtd * Valor Unitário)
-        pdf.set_xy(160, y_linha)
-        pdf.cell(35, 6, txt=valor_total_str, align='C')
+        pdf.set_xy(140, y_linha)
+        pdf.cell(25, 6, txt=str_unit, align='C')
         
-        # Descobre qual foi o bloco de texto mais longo para desenhar a linha divisória abaixo dele
+        pdf.set_xy(165, y_linha)
+        pdf.cell(30, 6, txt=str_total, align='C')
+        
         y_maximo = max(y_linha + 6, y_nome, y_desc)
         
         # Linha inferior do item
@@ -190,8 +201,8 @@ def gerar_pdf_bytes():
     pdf.set_fill_color(r_azul, g_azul, b_azul) 
     pdf.set_text_color(255, 255, 255) 
     pdf.set_font("Arial", "B", 14)
-    total_formatado = f"{total_orcamento:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    pdf.cell(90, 12, txt=f"TOTAL: R$ {total_formatado}", fill=True, align='C', ln=True) 
+    total_formatado = formatar_moeda(total_orcamento)
+    pdf.cell(90, 12, txt=f"TOTAL: {total_formatado}", fill=True, align='C', ln=True) 
     
     # Prazos e Condições
     pdf.ln(15)
