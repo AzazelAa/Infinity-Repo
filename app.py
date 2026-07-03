@@ -22,16 +22,16 @@ col1, col2 = st.columns(2)
 
 with col1:
     st.header("Dados do Cliente e Projeto")
-    numero_orc = st.text_input("Nº do Orçamento (Ex: 038/2026)")
-    cliente = st.text_input("Nome da Empresa (Ex: Vuteq do Brasil)")
+    numero_orc = st.text_input("Nº do Orçamento")
+    cliente = st.text_input("Nome da Empresa")
     cnpj = st.text_input("CNPJ da Empresa")
     endereco = st.text_input("Endereço da Empresa")
     projeto = st.text_input("Nome / Local do Projeto")
     contato_nome = st.text_input("Nome do Contato")
-    setor = st.text_input("Setor do Contato (Ex: TI, Manutenção)")
+    setor = st.text_input("Setor do Contato")
     contato_tel = st.text_input("Telefone do Contato")
-    ddl_pagamento = st.text_input("Condição de Pagamento (Ex: 30 DDL)")
-    prazo = st.text_input("Prazo de Execução (Ex: 15 dias úteis)")
+    ddl_pagamento = st.text_input("Condição de Pagamento")
+    prazo = st.text_input("Prazo de Execução")
 
 with col2:
     st.header("Adicionar Itens")
@@ -44,7 +44,7 @@ with col2:
         
     nome_item = st.text_input("Nome do Item")
     desc_item = st.text_area("Descrição / Detalhes")
-    valor_item = st.text_input("Valor Unitário (Ex: 1500,00)")
+    valor_item = st.text_input("Valor Unitário")
     
     if st.button("Adicionar à Lista", type="primary"):
         if nome_item and desc_item and valor_item:
@@ -124,7 +124,7 @@ def gerar_pdf_bytes():
     
     # Tabela de Itens
     pdf.ln(12)
-    pdf.set_font("Arial", "B", 9) # Fonte levemente menor para caber todas as colunas
+    pdf.set_font("Arial", "B", 9) 
     pdf.set_text_color(r_azul, g_azul, b_azul)
     
     y_linha = pdf.get_y()
@@ -145,7 +145,7 @@ def gerar_pdf_bytes():
     pdf.line(15, y_linha + 10, 195, y_linha + 10)
     pdf.set_y(y_linha + 12)
     
-    pdf.set_font("Arial", "", 8) # Fonte do conteúdo
+    pdf.set_font("Arial", "", 8) 
     pdf.set_text_color(0, 0, 0)
     
     total_orcamento = 0.0
